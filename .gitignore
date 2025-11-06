@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environment
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Model files
+*.h5
+*.pkl
+*.pt
+
+# Data
+data/raw/
+data/processed/
+
+# Logs
+logs/
+*.log
+
+# Local development
+.env
+.env.local
