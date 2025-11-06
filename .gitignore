@@ -36,3 +36,6 @@ logs/
 # Local development
 .env
 .env.local
+deployment.zip
+.gitignore
+deployment/

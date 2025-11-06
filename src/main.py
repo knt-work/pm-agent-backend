@@ -1,14 +1,8 @@
 """
-Main module for the AI application.
-This serves as the entry point for the application.
+Main module for the simple API application.
 """
 
 from fastapi import FastAPI
-from mangum import Mangum
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -26,9 +20,6 @@ async def health_check():
         "status": "healthy",
         "message": "Service is running"
     }
-
-# Create Lambda handler
-handler = Mangum(app)
 
 if __name__ == "__main__":
     import uvicorn

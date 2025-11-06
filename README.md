@@ -20,15 +20,15 @@ The service provides the following endpoints:
 ## Project Structure
 
 ```
-├── src/                    # Source code
-│   ├── models/            # ML/DL model implementations
-│   ├── data/              # Data processing and loading
-│   ├── utils/             # Utility functions and helpers
-│   └── main.py           # Main application entry point
-├── tests/                 # Unit tests
-├── requirements.txt       # Project dependencies
-├── .env.example          # Example environment variables
-└── README.md             # Project documentation
+├── lambda_function.py    # AWS Lambda handler
+├── src/                  # Source code
+│   ├── models/          # ML/DL model implementations
+│   ├── data/            # Data processing and loading
+│   └── utils/           # Utility functions and helpers
+├── tests/               # Unit tests
+├── requirements.txt     # Project dependencies
+├── .env.example        # Example environment variables
+└── README.md           # Project documentation
 ```
 
 ## Setup
@@ -72,41 +72,81 @@ The API will be available at:
 - Swagger Documentation: http://localhost:8000/docs
 - ReDoc Documentation: http://localhost:8000/redoc
 
-### AWS Lambda Deployment
+### Automated Deployment Process
 
-1. Create a deployment package:
-```bash
-# Create a deployment directory
+This project uses GitHub Actions for automated building and packaging. The pipeline automatically:
+1. Runs tests
+2. Creates a deployment package
+3. Makes the package available as an artifact
+
+To use the automated deployment:
+
+1. Push your changes to the `main` branch or create a pull request
+2. GitHub Actions will automatically run the build pipeline
+3. Download the deployment package from the Actions tab in GitHub
+
+### Manual Deployment
+
+If you need to create the deployment package locally:
+
+#### Windows PowerShell
+```powershell
+# Create deployment directory and virtual environment
 mkdir deployment
 cd deployment
-
-# Create a Python virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+.\venv\Scripts\activate
+
+# Install dependencies
+pip install -r ..\requirements.txt
+
+# Copy source files and create zip
+Copy-Item -Path ..\src -Destination . -Recurse
+Compress-Archive -Path src\*, venv\Lib\site-packages\* -DestinationPath deployment.zip -Force
+```
+
+#### Unix/Linux/MacOS
+```bash
+# Create deployment directory and virtual environment
+mkdir deployment
+cd deployment
+python -m venv venv
+source venv/bin/activate
 
 # Install dependencies
 pip install -r ../requirements.txt
 
-# Copy source files
+# Copy source files and create zip
 cp -r ../src .
-
-# Create deployment package
-zip -r ../deployment.zip ./src
+zip -r deployment.zip ./src
 cd venv/lib/python3.10/site-packages
 zip -r ../../../../deployment.zip .
-cd ../../../../
 ```
 
-2. Configure AWS Lambda:
-   - Create a new Lambda function
-   - Runtime: Python 3.10
-   - Handler: `src.main.handler`
-   - Upload the `deployment.zip` file
-   - Configure environment variables if needed
-   - Set up API Gateway as trigger
-   - Configure memory and timeout settings as needed
+### AWS Lambda Configuration
 
-3. After deployment, your API will be available at the API Gateway URL provided by AWS.
+1. Create/Update Lambda Function:
+   - Runtime: Python 3.10 or Python 3.12
+   - Handler: `lambda_function.handler`
+   - Memory: 256MB (recommended)
+   - Timeout: 30 seconds
+   - Upload the `deployment.zip` file
+
+2. Configure API Gateway:
+   - Create REST API Gateway
+   - Create resources for each endpoint:
+     - `/health` (GET)
+   - Deploy API to a stage (e.g., 'prod', 'dev')
+   - Note the API Gateway URL
+
+3. Environment Variables (if needed):
+   - Configure in Lambda console
+   - Add variables defined in your .env file
+
+4. Monitoring:
+   - CloudWatch Logs automatically enabled
+   - Monitor API Gateway metrics
+   - Set up CloudWatch alarms if needed
 
 ## Development
 
