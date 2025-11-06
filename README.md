@@ -1,6 +1,21 @@
-# AI Project
+# PM Agent Backend
 
-This is a Python-based AI project template with a focus on machine learning and deep learning applications.
+This is a Python-based backend service with API endpoints, designed to run on AWS Lambda.
+
+## API Documentation
+
+The service provides the following endpoints:
+
+### Health Check
+- **URL**: `/health`
+- **Method**: `GET`
+- **Response**:
+  ```json
+  {
+    "status": "healthy",
+    "message": "Service is running"
+  }
+  ```
 
 ## Project Structure
 
@@ -45,10 +60,53 @@ cp .env.example .env
 
 ## Usage
 
-Run the main application:
+### Local Development
+Run the FastAPI application locally:
 ```bash
-python src/main.py
+cd src
+uvicorn main:app --reload
 ```
+
+The API will be available at:
+- API Endpoint: http://localhost:8000
+- Swagger Documentation: http://localhost:8000/docs
+- ReDoc Documentation: http://localhost:8000/redoc
+
+### AWS Lambda Deployment
+
+1. Create a deployment package:
+```bash
+# Create a deployment directory
+mkdir deployment
+cd deployment
+
+# Create a Python virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+
+# Install dependencies
+pip install -r ../requirements.txt
+
+# Copy source files
+cp -r ../src .
+
+# Create deployment package
+zip -r ../deployment.zip ./src
+cd venv/lib/python3.10/site-packages
+zip -r ../../../../deployment.zip .
+cd ../../../../
+```
+
+2. Configure AWS Lambda:
+   - Create a new Lambda function
+   - Runtime: Python 3.10
+   - Handler: `src.main.handler`
+   - Upload the `deployment.zip` file
+   - Configure environment variables if needed
+   - Set up API Gateway as trigger
+   - Configure memory and timeout settings as needed
+
+3. After deployment, your API will be available at the API Gateway URL provided by AWS.
 
 ## Development
 
