@@ -98,6 +98,7 @@ Transformation rules:
     • "legend":"right","legendPadInches":1.0 for charts
     • "gutterInches":1.15,"shortenLanes":true for Gantt
 - Return a single JSON object that matches the OUTPUT SCHEMA exactly.
+- As for all the charts, shorten the text to avoid text overlap or overflow
 
 ---
 

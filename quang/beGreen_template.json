@@ -1,149 +1,134 @@
 {
-    "domain": "beGreen",
-    "version": "1.0",
-    "slides": [
-      {
-        "type": "cover",
-        "desc": "Intro slide with title/subtitle and ownership metadata for the beGreen initiative.",
-        "elements": [
-          { "kind": "text", "field": "title", "desc": "Main deck title", "required": true, "source": ["title","project.name","branding.headline"] },
-          { "kind": "text", "field": "subtitle", "desc": "Short mission/value proposition (sustainability focus)", "required": false, "source": ["tagline","mission.statement"] },
-          { "kind": "meta", "field": "owner", "desc": "Team/org name", "required": false, "source": ["org.owner","team.name","sponsor.org"] },
-          { "kind": "meta", "field": "date", "desc": "Presentation date", "required": false, "source": ["doc.date","analysis.date"] }
-        ]
-      },
-  
-      {
-        "type": "agenda",
-        "desc": "Outline of sections to be covered.",
-        "elements": [
-          { "kind": "bullets", "field": "items", "desc": "Agenda items in display order", "required": true, "itemDesc": "One short title per item", "source": ["agenda.items","toc","outline"] }
-        ]
-      },
-  
-      {
-        "type": "vision",
-        "desc": "beGreen vision and sustainability objectives.",
-        "elements": [
-          { "kind": "text", "field": "vision", "desc": "One-paragraph vision for environmental impact", "required": false, "source": ["vision","mission","why.now"] },
-          { "kind": "bullets", "field": "objectives", "desc": "3–5 measurable objectives (e.g., CO₂ cut, waste reduction, energy efficiency)", "required": true, "itemDesc": "One objective per bullet; concise + measurable", "source": ["objectives","goals","okrs"] }
-        ]
-      },
-  
-      {
-        "type": "problem_opportunity",
-        "desc": "Current pain points and opportunity framing in green context.",
-        "elements": [
-          { "kind": "bullets", "field": "problems", "desc": "Top problems (environmental, operational, compliance)", "required": true, "itemDesc": "Short, factual bullets", "source": ["problem","pain.points"] },
-          { "kind": "bullets", "field": "opportunities", "desc": "Opportunities/benefits aligned to sustainability", "required": false, "itemDesc": "Short bullets linked to impact", "source": ["opportunity","benefits"] }
-        ]
-      },
-  
-      {
-        "type": "scope",
-        "desc": "Project Scope — REQUIRED: include features list.",
-        "elements": [
-          { "kind": "paragraph", "field": "in_scope", "desc": "Bulleted list of items included in current phase (e.g., energy monitoring, recycling workflows)", "required": true, "source": ["scope.in","scope.current"] },
-          { "kind": "paragraph", "field": "out_scope", "desc": "Bulleted list of deferred or excluded items", "required": false, "source": ["scope.out","scope.future"] },
-          { "kind": "bullets", "field": "features", "desc": "Feature list — name — short value statement", "required": true, "itemDesc": "6–10 features max; one line each", "source": ["features.list","capabilities","modules"] }
-        ]
-      },
-  
-      {
-        "type": "solution_overview",
-        "desc": "High-level solution and architecture (eco-friendly enabling tech).",
-        "elements": [
-          { "kind": "bullets", "field": "solution_pillars", "desc": "3–6 pillars (e.g., IoT sensors, analytics, automation, reporting)", "required": true, "itemDesc": "Heading — short explanation", "source": ["solution.pillars","overview.pillars"] },
-          { "kind": "bullets", "field": "sustainability_enablers", "desc": "How tech supports sustainability KPIs (e.g., energy optimization, waste tracking)", "required": false, "itemDesc": "Short bullets", "source": ["sustainability.enablers","green.enablers"] }
-        ]
-      },
-  
-      {
-        "type": "kpis",
-        "desc": "Sustainability + business KPIs table.",
-        "elements": [
-          { "kind": "table", "field": "metrics", "desc": "KPI rows with baseline/target", "required": true,
-            "tableSpec": {
-              "headers": { "desc": "e.g., KPI, Baseline, Target, Notes/Method" },
-              "rows": { "desc": "Rows of strings" }
-            },
-            "source": ["kpis.table","metrics.sustainability","metrics.business"]
-          }
-        ]
-      },
-  
-      {
-        "type": "charts",
-        "desc": "Optional charts for adoption, emissions mix, or trendlines.",
-        "elements": [
-          { "kind": "chart", "field": "bar_chart", "desc": "Bar/column — e.g., monthly energy savings", "required": false,
-            "chartSpec": { "title": { "desc": "Chart title" }, "categories": { "desc": "X labels" }, "series": { "desc": "Array of series with values" } },
-            "source": ["charts.bar","charts.column","adoption.monthly"] },
-          { "kind": "chart", "field": "line_chart", "desc": "Line — e.g., CO₂ trend", "required": false,
-            "chartSpec": { "title": { "desc": "Chart title" }, "categories": { "desc": "X labels" }, "series": { "desc": "Array of series with values" } },
-            "source": ["charts.line","emissions.trend"] },
-          { "kind": "chart", "field": "pie_chart", "desc": "Pie — e.g., emission sources mix", "required": false,
-            "chartSpec": { "title": { "desc": "Chart title" }, "slices": { "desc": "Array of {label,value}" } },
-            "source": ["charts.pie","emissions.mix","waste.mix"] }
-        ]
-      },
-  
-      {
-        "type": "roadmap",
-        "desc": "Product Roadmap — REQUIRED: Gantt chart with quarters.",
-        "elements": [
-          { "kind": "gantt", "field": "timeline", "desc": "Time range, lanes, tasks, quarter boundaries", "required": true,
-            "ganttSpec": {
-              "t0": { "desc": "Start ISO date" },
-              "t1": { "desc": "End ISO date" },
-              "lanes": { "desc": "Array of lane display names (phases/streams)" },
-              "items": { "desc": "Tasks with start/end ISO dates and lane index" },
-              "quarters": { "desc": "Quarter boundary ISO dates for labels" }
-            },
-            "source": ["roadmap","timeline","schedule","phases","plan"]
-          }
-        ]
-      },
-  
-      {
-        "type": "stakeholders",
-        "desc": "Governance & roles (no personal names).",
-        "elements": [
-          { "kind": "bullets", "field": "roles", "desc": "Role — responsibility (e.g., Sustainability Lead, PM, Data Engineer)", "required": true, "itemDesc": "One line per role", "source": ["governance.roles","stakeholders.roles","raci.summary"] }
-        ]
-      },
-  
-      {
-        "type": "risks",
-        "desc": "Risk register summary.",
-        "elements": [
-          { "kind": "table", "field": "risk_table", "desc": "Risks with impact and mitigation", "required": true,
-            "tableSpec": {
-              "headers": { "desc": "Risk / Decision, Impact, Mitigation / Ask, Owner" },
-              "rows": { "desc": "Rows of strings" }
-            },
-            "source": ["risks.table","risks.list","assumptions.constraints"]
-          }
-        ]
-      },
-  
-      {
-        "type": "impact_outcomes",
-        "desc": "Expected outcomes and environmental impact.",
-        "elements": [
-          { "kind": "bullets", "field": "outcomes", "desc": "Expected benefits (e.g., % reduction, cost savings, compliance)", "required": true, "itemDesc": "Short, quantifiable when possible", "source": ["outcomes.list","benefits","impact"] },
-          { "kind": "bullets", "field": "measurement", "desc": "How impact is measured (methodology, cadence)", "required": false, "itemDesc": "Short bullets", "source": ["measurement.plan","reporting.method"] }
-        ]
-      },
-  
-      {
-        "type": "closing",
-        "desc": "Closing statement and contact.",
-        "elements": [
-          { "kind": "text", "field": "quote", "desc": "Short closing line aligned to beGreen values", "required": false, "source": ["closing.quote","tagline"] },
-          { "kind": "text", "field": "contact", "desc": "Contact info (email/URL)", "required": false, "source": ["closing.contact","org.contact"] }
-        ]
-      }
-    ]
-  }
-  
+  "domain": "beGreen",
+  "version": "1.1",
+  "slides": [
+    {
+      "type": "cover",
+      "desc": "Intro slide with title, subtitle, and ownership metadata.",
+      "elements": [
+        { "kind": "text", "field": "title", "required": true, "desc": "Main project title", "source": ["title", "project.name"] },
+        { "kind": "text", "field": "subtitle", "required": false, "desc": "Mission or tagline", "source": ["mission", "tagline"] },
+        { "kind": "meta", "field": "owner", "required": false, "desc": "Team or organization name", "source": ["org.owner", "team.name"] },
+        { "kind": "meta", "field": "date", "required": false, "desc": "Presentation date", "source": ["doc.date"] }
+      ]
+    },
+ 
+    {
+      "type": "summary",
+      "desc": "Executive summary with key project info.",
+      "elements": [
+        { "kind": "bullets", "field": "summary_points", "required": true, "itemDesc": "Each bullet: key data such as objective, duration, users, impact", "source": ["summary.points", "project.overview"] }
+      ]
+    },
+ 
+    {
+      "type": "objectives",
+      "desc": "Vision or main objectives.",
+      "elements": [
+        { "kind": "bullets", "field": "objectives", "required": true, "itemDesc": "Short, measurable objectives", "source": ["objectives", "goals"] }
+      ]
+    },
+ 
+    {
+      "type": "scope",
+      "desc": "In-scope and out-of-scope overview.",
+      "elements": [
+        { "kind": "paragraph", "field": "in_scope", "required": true, "desc": "Items in current phase", "source": ["scope.in"] },
+        { "kind": "paragraph", "field": "out_scope", "required": false, "desc": "Deferred or future items", "source": ["scope.out"] }
+      ]
+    },
+ 
+    {
+      "type": "features",
+      "desc": "List of core system features.",
+      "elements": [
+        { "kind": "bullets", "field": "features", "required": true, "itemDesc": "Feature name — short value statement (max 10)", "source": ["features.list", "capabilities"] }
+      ]
+    },
+ 
+    {
+      "type": "chart",
+      "desc": "Optional bar/column chart for metrics or adoption.",
+      "elements": [
+        {
+          "kind": "chart",
+          "field": "chart_data",
+          "required": false,
+          "chartSpec": {
+            "title": { "desc": "Chart title" },
+            "categories": { "desc": "X-axis labels" },
+            "series": { "desc": "Array of series with numeric values" }
+          },
+          "source": ["charts.bar", "charts.column", "metrics.chart"]
+        }
+      ]
+    },
+ 
+    {
+      "type": "roadmap",
+      "desc": "Product roadmap table (by phases or quarters).",
+      "elements": [
+        {
+          "kind": "table",
+          "field": "timeline",
+          "required": true,
+          "tableSpec": {
+            "headers": ["Phase", "Timeline", "Key Deliverables"],
+            "rows": { "desc": "One row per phase" }
+          },
+          "source": ["roadmap.table", "plan.timeline"]
+        }
+      ]
+    },
+ 
+    {
+      "type": "architecture",
+      "desc": "Technical / solution architecture summary.",
+      "elements": [
+        { "kind": "bullets", "field": "layers", "required": true, "itemDesc": "Layer name — technology stack", "source": ["architecture.layers", "solution.techstack"] }
+      ]
+    },
+ 
+    {
+      "type": "roles",
+      "desc": "Governance and key roles.",
+      "elements": [
+        { "kind": "bullets", "field": "roles", "required": true, "itemDesc": "Role — responsibility", "source": ["governance.roles", "stakeholders.roles"] }
+      ]
+    },
+ 
+    {
+      "type": "risks",
+      "desc": "Main risks and mitigation summary.",
+      "elements": [
+        {
+          "kind": "table",
+          "field": "risks",
+          "required": true,
+          "tableSpec": {
+            "headers": ["Risk", "Impact", "Mitigation"],
+            "rows": { "desc": "Rows of short text" }
+          },
+          "source": ["risks.table", "risks.list"]
+        }
+      ]
+    },
+ 
+    {
+      "type": "outcomes",
+      "desc": "Expected outcomes or success metrics.",
+      "elements": [
+        { "kind": "bullets", "field": "outcomes", "required": true, "itemDesc": "Expected measurable results", "source": ["outcomes.list", "impact"] }
+      ]
+    },
+ 
+    {
+      "type": "closing",
+      "desc": "Closing statement and contact details.",
+      "elements": [
+        { "kind": "text", "field": "quote", "required": false, "desc": "Final line / message", "source": ["closing.quote"] },
+        { "kind": "text", "field": "contact", "required": false, "desc": "Contact info", "source": ["closing.contact"] }
+      ]
+    }
+  ]
+}
