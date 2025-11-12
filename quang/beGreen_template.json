@@ -1,54 +1,125 @@
 {
   "domain": "beGreen",
-  "version": "1.1",
+  "version": "1.4",
   "slides": [
     {
       "type": "cover",
-      "desc": "Intro slide with title, subtitle, and ownership metadata.",
+      "desc": "Title, subtitle, ownership.",
       "elements": [
-        { "kind": "text", "field": "title", "required": true, "desc": "Main project title", "source": ["title", "project.name"] },
-        { "kind": "text", "field": "subtitle", "required": false, "desc": "Mission or tagline", "source": ["mission", "tagline"] },
-        { "kind": "meta", "field": "owner", "required": false, "desc": "Team or organization name", "source": ["org.owner", "team.name"] },
-        { "kind": "meta", "field": "date", "required": false, "desc": "Presentation date", "source": ["doc.date"] }
+        {
+          "kind": "text",
+          "field": "title",
+          "required": true,
+          "source": ["title", "project.name", "branding.headline"],
+          "resolver": { "fn": "coverTitle", "hints": ["title","project","initiative"] }
+        },
+        {
+          "kind": "text",
+          "field": "subtitle",
+          "required": false,
+          "source": ["tagline", "mission.statement"],
+          "resolver": { "fn": "coverSubtitle" }
+        },
+        { "kind": "meta", "field": "owner", "required": false, "source": ["org.owner","team.name","sponsor.org"] },
+        { "kind": "meta", "field": "date", "required": false, "source": ["doc.date","analysis.date"] }
       ]
     },
- 
+
     {
       "type": "summary",
-      "desc": "Executive summary with key project info.",
+      "desc": "Executive summary.",
       "elements": [
-        { "kind": "bullets", "field": "summary_points", "required": true, "itemDesc": "Each bullet: key data such as objective, duration, users, impact", "source": ["summary.points", "project.overview"] }
+        {
+          "kind": "bullets",
+          "field": "summary_points",
+          "required": true,
+          "itemDesc": "Objective, duration, users, target impact",
+          "source": ["summary.points","project.overview"],
+          "resolver": {
+            "fn": "collectBulletsBySlideTitle",
+            "slideTitleHints": ["Executive Summary","Summary","Overview"],
+            "min": 3, "max": 8
+          }
+        }
       ]
     },
- 
+
     {
       "type": "objectives",
-      "desc": "Vision or main objectives.",
+      "desc": "Vision and measurable objectives.",
       "elements": [
-        { "kind": "bullets", "field": "objectives", "required": true, "itemDesc": "Short, measurable objectives", "source": ["objectives", "goals"] }
+        {
+          "kind": "bullets",
+          "field": "objectives",
+          "required": true,
+          "itemDesc": "3–5 short, measurable objectives",
+          "source": ["objectives","goals","okrs"],
+          "resolver": {
+            "fn": "bulletsByKeywords",
+            "slideTitleHints": ["Objectives","Goals","Vision"],
+            "lineInclude": ["%","reduce","increase","coverage","baseline","target"]
+          }
+        }
       ]
     },
- 
+
     {
       "type": "scope",
-      "desc": "In-scope and out-of-scope overview.",
+      "desc": "In-scope and out-of-scope.",
       "elements": [
-        { "kind": "paragraph", "field": "in_scope", "required": true, "desc": "Items in current phase", "source": ["scope.in"] },
-        { "kind": "paragraph", "field": "out_scope", "required": false, "desc": "Deferred or future items", "source": ["scope.out"] }
+        {
+          "kind": "paragraph",
+          "field": "in_scope",
+          "required": true,
+          "source": ["scope.in","scope.current"],
+          "resolver": {
+            "fn": "extractLabeledSection",
+            "slideTitleHints": ["Scope","Project Scope","Scope Summary"],
+            "label": "In Scope",
+            "fallbackBulletify": true
+          }
+        },
+        {
+          "kind": "paragraph",
+          "field": "out_scope",
+          "required": false,
+          "source": ["scope.out","scope.future"],
+          "resolver": {
+            "fn": "extractLabeledSection",
+            "slideTitleHints": ["Scope","Project Scope","Scope Summary"],
+            "label": "Out of Scope",
+            "fallbackBulletify": true
+          }
+        }
       ]
     },
- 
+
     {
       "type": "features",
-      "desc": "List of core system features.",
+      "desc": "Core features as a table.",
       "elements": [
-        { "kind": "bullets", "field": "features", "required": true, "itemDesc": "Feature name — short value statement (max 10)", "source": ["features.list", "capabilities"] }
+        {
+          "kind": "table",
+          "field": "features_table",
+          "required": true,
+          "tableSpec": {
+            "headers": ["Feature","Value (1-line)","Priority","Status"],
+            "rows": { "desc": "6–10 rows; strings only" }
+          },
+          "source": ["features.table","features.list","capabilities","modules"],
+          "resolver": {
+            "fn": "featuresToTable",
+            "slideTitleHints": ["Features","Key Features","Capabilities"],
+            "cardPattern": "Title line followed by one description line",
+            "defaults": { "Priority": "High", "Status": "Planned" }
+          }
+        }
       ]
     },
- 
+
     {
       "type": "chart",
-      "desc": "Optional bar/column chart for metrics or adoption.",
+      "desc": "Optional metrics/adoption chart.",
       "elements": [
         {
           "kind": "chart",
@@ -57,77 +128,156 @@
           "chartSpec": {
             "title": { "desc": "Chart title" },
             "categories": { "desc": "X-axis labels" },
-            "series": { "desc": "Array of series with numeric values" }
+            "series": { "desc": "Array of { name, values:number[] }" }
           },
-          "source": ["charts.bar", "charts.column", "metrics.chart"]
+          "source": ["charts.bar","charts.column","metrics.chart"],
+          "resolver": {
+            "fn": "anyColumnChart",
+            "slideTitleHints": ["Chart","Metrics","Adoption","Energy","Savings"],
+            "preferClusteredColumn": true
+          }
         }
       ]
     },
- 
+
     {
       "type": "roadmap",
-      "desc": "Product roadmap table (by phases or quarters).",
+      "desc": "Product Roadmap — render as Gantt.",
       "elements": [
         {
-          "kind": "table",
+          "kind": "gantt",
           "field": "timeline",
           "required": true,
-          "tableSpec": {
-            "headers": ["Phase", "Timeline", "Key Deliverables"],
-            "rows": { "desc": "One row per phase" }
+          "ganttSpec": {
+            "t0": { "desc": "Start ISO date" },
+            "t1": { "desc": "End ISO date" },
+            "lanes": { "desc": "Display names for phases/streams" },
+            "items": {
+              "desc": "Tasks",
+              "shape": {
+                "id": "string",
+                "label": "string",
+                "laneIndex": "number",
+                "start": "ISO date",
+                "end": "ISO date",
+                "milestone": "boolean (optional)",
+                "dependencyIds": "string[] (optional)"
+              }
+            },
+            "quarters": { "desc": "Quarter boundaries as ISO dates" }
           },
-          "source": ["roadmap.table", "plan.timeline"]
+          "source": ["roadmap","timeline","schedule","phases","plan"],
+          "resolver": {
+            "fn": "tableToGantt",
+            "slideTitleHints": ["Roadmap","Product Roadmap","Timeline","Plan"],
+            "tableHeaderMap": { "phase": ["Phase"], "time": ["Timeline","Dates"], "deliverables": ["Key Deliverables","Deliverables"] },
+            "quarterTokens": ["Q1","Q2","Q3","Q4"],
+            "yearRegex": "(20\\d\\d)",
+            "laneStrategy": "byPhaseOrdinalOrPrefix",
+            "milestoneKeywords": ["Go-Live","Launch","GA"]
+          }
         }
       ]
     },
- 
+
     {
       "type": "architecture",
-      "desc": "Technical / solution architecture summary.",
+      "desc": "Technical / solution architecture.",
       "elements": [
-        { "kind": "bullets", "field": "layers", "required": true, "itemDesc": "Layer name — technology stack", "source": ["architecture.layers", "solution.techstack"] }
+        {
+          "kind": "bullets",
+          "field": "layers",
+          "required": true,
+          "itemDesc": "Layer — tech stack",
+          "source": ["architecture.layers","solution.techstack"],
+          "resolver": {
+            "fn": "pairLinesToBullets",
+            "slideTitleHints": ["Architecture","Technical Architecture","Solution Overview"],
+            "joiner": " — "
+          }
+        }
       ]
     },
- 
+
     {
       "type": "roles",
-      "desc": "Governance and key roles.",
+      "desc": "Governance & roles (no personal names).",
       "elements": [
-        { "kind": "bullets", "field": "roles", "required": true, "itemDesc": "Role — responsibility", "source": ["governance.roles", "stakeholders.roles"] }
+        {
+          "kind": "bullets",
+          "field": "roles",
+          "required": true,
+          "itemDesc": "Role — responsibility",
+          "source": ["governance.roles","stakeholders.roles","raci.summary"],
+          "resolver": {
+            "fn": "cleanRoleBullets",
+            "slideTitleHints": ["Governance","Roles","Team"],
+            "stripEmoji": true
+          }
+        }
       ]
     },
- 
+
     {
       "type": "risks",
-      "desc": "Main risks and mitigation summary.",
+      "desc": "Risk register summary.",
       "elements": [
         {
           "kind": "table",
-          "field": "risks",
+          "field": "risk_table",
           "required": true,
           "tableSpec": {
-            "headers": ["Risk", "Impact", "Mitigation"],
-            "rows": { "desc": "Rows of short text" }
+            "headers": ["Risk / Decision","Impact","Mitigation / Ask","Owner"],
+            "rows": { "desc": "Rows of strings" }
           },
-          "source": ["risks.table", "risks.list"]
+          "source": ["risks.table","risks.list","assumptions.constraints"],
+          "resolver": {
+            "fn": "pairRiskAndMitigation",
+            "slideTitleHints": ["Risks","Risk Management","Assumptions"],
+            "defaultImpact": "Medium",
+            "defaultOwner": "TBD"
+          }
         }
       ]
     },
- 
+
     {
       "type": "outcomes",
-      "desc": "Expected outcomes or success metrics.",
+      "desc": "Expected outcomes and impact.",
       "elements": [
-        { "kind": "bullets", "field": "outcomes", "required": true, "itemDesc": "Expected measurable results", "source": ["outcomes.list", "impact"] }
+        {
+          "kind": "bullets",
+          "field": "outcomes",
+          "required": true,
+          "itemDesc": "Short, quantifiable when possible",
+          "source": ["outcomes.list","benefits","impact"],
+          "resolver": {
+            "fn": "collectBulletsBySlideTitle",
+            "slideTitleHints": ["Outcomes","Expected Outcomes","Benefits","Results"],
+            "min": 3, "max": 8
+          }
+        }
       ]
     },
- 
+
     {
       "type": "closing",
-      "desc": "Closing statement and contact details.",
+      "desc": "Closing and contact.",
       "elements": [
-        { "kind": "text", "field": "quote", "required": false, "desc": "Final line / message", "source": ["closing.quote"] },
-        { "kind": "text", "field": "contact", "required": false, "desc": "Contact info", "source": ["closing.contact"] }
+        {
+          "kind": "text",
+          "field": "quote",
+          "required": false,
+          "source": ["closing.quote","tagline"],
+          "resolver": { "fn": "lastQuoteLine", "hints": ["quote","closing"] }
+        },
+        {
+          "kind": "text",
+          "field": "contact",
+          "required": false,
+          "source": ["closing.contact","org.contact"],
+          "resolver": { "fn": "contactLine", "patterns": ["@",".org",".io",".com","http","www"] }
+        }
       ]
     }
   ]
