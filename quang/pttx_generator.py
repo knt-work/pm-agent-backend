@@ -9,8 +9,48 @@ Elements:
 
 Samples at the bottom: SAMPLE_TEN_SLIDES (10 slides), SAMPLE_FLAT_WITH_SLIDE_TAGS
 """
-
 from __future__ import annotations
+import re
+_Q_RE = re.compile(r"^(\d{4})\s+Q([1-4])$", re.I)
+import json
+
+def cleaning_JSON(raw_text: str):
+    """
+    - Parse JSON string to Python objects
+    - Convert string 'True'/'False' to Python booleans True/False
+      (JSON booleans True/False are already handled by json.loads)
+    - Recursively remove any key 'layout' whose value is None.
+    """
+    data = json.loads(raw_text)
+
+    def normalize(obj):
+        # Convert string booleans like "True" / "False"
+        if isinstance(obj, str):
+            lower = obj.strip().lower()
+            if lower == "True":
+                return True
+            if lower == "False":
+                return False
+            return obj  # keep as-is
+
+        # Dict: recurse + drop layout=None
+        if isinstance(obj, dict):
+            new = {}
+            for k, v in obj.items():
+                if k == "layout" and v is None:
+                    continue
+                new[k] = normalize(v)
+            return new
+
+        # List: recurse
+        if isinstance(obj, list):
+            return [normalize(v) for v in obj]
+
+        # Other types unchanged (including actual bools from JSON: True/False)
+        return obj
+
+    return normalize(data)
+
 import os
 from datetime import datetime
 try:
@@ -23,6 +63,7 @@ from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.dml.color import RGBColor
+import json
 
 # charts
 from pptx.chart.data import ChartData, CategoryChartData
@@ -39,14 +80,59 @@ DEFAULT_BG = "#FFFFFF"
 # =========================
 # Utils
 # =========================
+
 def parse_time(x):
+    # already a timestamp
     if isinstance(x, (int, float)):
         return datetime.fromtimestamp(x)
+
+    # already a datetime
     if isinstance(x, datetime):
         return x
+
+    # None or undefined-ish → just return "now" as a safe fallback
+    if x is None:
+        return datetime.now()
+
+    # handle strings
+    if isinstance(x, str):
+        s = x.strip()
+
+        # special case: "2025 Q1" → 2025-01-01, "2025 Q2" → 2025-04-01, etc.
+        m = _Q_RE.match(s)
+        if m:
+            year = int(m.group(1))
+            q = int(m.group(2))
+            month = (q - 1) * 3 + 1
+            return datetime(year, month, 1)
+
+        # try dateutil
+        if dateparser:
+            try:
+                return dateparser.parse(s)
+            except Exception:
+                pass
+
+        # try ISO8601
+        try:
+            return datetime.fromisoformat(s)
+        except Exception:
+            # last-ditch fallback: don't crash, just return "now"
+            return datetime.now()
+
+    # very defensive fallback for weird types
+    s = str(x)
     if dateparser:
-        return dateparser.parse(x)
-    return datetime.fromisoformat(x)
+        try:
+            return dateparser.parse(s)
+        except Exception:
+            return datetime.now()
+    try:
+        return datetime.fromisoformat(s)
+    except Exception:
+        return datetime.now()
+
+
 
 def to_rgb(hex_color: str) -> RGBColor:
     s = (hex_color or "").lstrip("#")
@@ -115,12 +201,30 @@ def render_textbox(slide, element):
     """
     Supports: heading | paragraph | bullets | rich
     Auto-fit enabled; optional margins: style.margins.{left,right,top,bottom} in inches
+
+    If element["position"] is not provided, sensible defaults are chosen per variant
+    that work nicely on a 16:9 slide.
     """
     variant = element.get("variant", "paragraph")
-    position = element.get("position", {"x": 1.0, "y": 1.0, "w": 10.0, "h": 1.0})
-    style = element.get("style", {})
+    style = element.get("style", {}) or {}
+
+    # -------- Default positions (if not explicitly provided) --------
+    if "position" in element:
+        position = element["position"]
+    else:
+        # These assume a 13.333" wide slide and leave ~1" margins.
+        if variant == "heading":
+            # Big title near the top
+            position = {"x": 1.0, "y": 0.8, "w": 11.3, "h": 1.2}
+        elif variant == "bullets":
+            # Bullets under a typical heading
+            position = {"x": 1.0, "y": 1.9, "w": 11.3, "h": 4.0}
+        else:  # paragraph / rich
+            position = {"x": 1.0, "y": 1.4, "w": 11.3, "h": 3.0}
 
     x, y, w, h = inches_rect(position)
+
+    # -------- Create textbox & frame --------
     tb = slide.shapes.add_textbox(x, y, w, h)
     tf = tb.text_frame
     tf.clear()
@@ -130,56 +234,81 @@ def render_textbox(slide, element):
     except Exception:
         pass
 
-    margins = style.get("margins", {})
+    # Margins
+    margins = style.get("margins", {}) or {}
     try:
-        if "left" in margins:  tf.margin_left   = Inches(margins["left"])
-        if "right" in margins: tf.margin_right  = Inches(margins["right"])
-        if "top" in margins:   tf.margin_top    = Inches(margins["top"])
-        if "bottom" in margins:tf.margin_bottom = Inches(margins["bottom"])
+        if "left" in margins:
+            tf.margin_left = Inches(margins["left"])
+        if "right" in margins:
+            tf.margin_right = Inches(margins["right"])
+        if "top" in margins:
+            tf.margin_top = Inches(margins["top"])
+        if "bottom" in margins:
+            tf.margin_bottom = Inches(margins["bottom"])
     except Exception:
         pass
 
+    # -------- Variant-specific rendering --------
     if variant in ("heading", "paragraph"):
         p = tf.paragraphs[0]
         p.text = element.get("text", "")
+
+        # For heading, enforce a bold, larger font, but still allow
+        # caller to override size/name if they provided them.
         if variant == "heading":
+            font_cfg = style.get("font", {})
+            font_cfg = {
+                "name": font_cfg.get("name", DEFAULT_FONT_NAME),
+                "size": font_cfg.get("size", 28),
+                "bold": True,
+            }
             style = {
-                "font": {
-                    "size": style.get("font", {}).get("size", 28),
-                    "bold": True,
-                    "name": style.get("font", {}).get("name", DEFAULT_FONT_NAME),
-                },
+                "font": font_cfg,
                 "align": style.get("align", "left"),
                 "text": style.get("text", DEFAULT_TEXT_COLOR),
-                "margins": style.get("margins", {})
+                "margins": style.get("margins", {}),
             }
+
         apply_text_style(p, style)
 
     elif variant == "bullets":
-        items = element.get("items", [])
+        items = element.get("items", []) or []
         for i, item in enumerate(items):
             p = tf.add_paragraph() if i > 0 else tf.paragraphs[0]
             p.text = item.get("text", "")
             p.level = int(item.get("level", 0))
             apply_text_style(p, style)
-            p.font.size = Pt(style.get("font", {}).get("size", 16))
+
+            # Optional per-bullet font size override
+            font_cfg = style.get("font", {}) or {}
+            if "size" in font_cfg:
+                p.font.size = Pt(font_cfg["size"])
+            else:
+                p.font.size = Pt(16)
 
     elif variant == "rich":
-        runs = element.get("runs", [])
+        runs = element.get("runs", []) or []
         p = tf.paragraphs[0]
         p.text = ""
         for r in runs:
             run = p.add_run()
             run.text = r.get("text", "")
-            rfont = r.get("font", {})
+            rfont = r.get("font", {}) or {}
             run.font.name = rfont.get("name", DEFAULT_FONT_NAME)
             if "size" in rfont:
                 run.font.size = Pt(rfont["size"])
-            if "bold" in r:      run.font.bold = bool(r["bold"])
-            if "italic" in r:    run.font.italic = bool(r["italic"])
-            if "underline" in r: run.font.underline = bool(r["underline"])
-            run.font.color.rgb = to_rgb(r.get("color", style.get("text", DEFAULT_TEXT_COLOR)))
+            if "bold" in r:
+                run.font.bold = bool(r["bold"])
+            if "italic" in r:
+                run.font.italic = bool(r["italic"])
+            if "underline" in r:
+                run.font.underline = bool(r["underline"])
+            run.font.color.rgb = to_rgb(
+                r.get("color", style.get("text", DEFAULT_TEXT_COLOR))
+            )
+
         apply_text_style(p, style)
+
 
 # =========================
 # Renderer: TABLE
@@ -366,6 +495,7 @@ def render_chart_line(slide, element):
 # Gantt (chevrons) with left gutter
 # =========================
 def render_chart_gantt(slide, element):
+    # ----- Outer frame -----
     pos = element.get("position", {"x": 1.0, "y": 1.2, "w": 11.3, "h": 5.0})
     x, y, w, h = inches_rect(pos)
 
@@ -375,17 +505,22 @@ def render_chart_gantt(slide, element):
     if content_w < Inches(1.0):
         content_w = Inches(1.0)
 
-    lanes_raw = element.get("units", {}).get("yRange", {}).get("lanes", [])
+    # ----- Lanes & lane labels -----
+    lanes_raw = element.get("units", {}).get("yRange", {}).get("lanes", []) or []
     lanes = [_shorten_lane(v) for v in lanes_raw] if element.get("shortenLanes", True) else lanes_raw
 
     lane_count = max(len(lanes), 1)
     lane_height = h / lane_count
 
-    t0 = parse_time(element.get("units", {}).get("xRange", {}).get("t0"))
-    t1 = parse_time(element.get("units", {}).get("xRange", {}).get("t1"))
+    # ----- Time range for items (still proper dates) -----
+    units = element.get("units", {}) or {}
+    x_range = units.get("xRange", {}) or {}
+    t0 = parse_time(x_range.get("t0"))
+    t1 = parse_time(x_range.get("t1"))
     total_days = max((t1 - t0).days, 1)
 
     def x_pos(dt_str: str):
+        """Map a date-like string to an x position within content area."""
         dt = parse_time(dt_str)
         d = (dt - t0).days
         return content_x + content_w * (d / total_days)
@@ -396,76 +531,155 @@ def render_chart_gantt(slide, element):
     # lane backgrounds + labels (in gutter)
     for i in range(lane_count):
         yy = y_pos(i)
+        # zebra striping
         if i % 2 == 0:
-            bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, content_x, yy, content_w, lane_height)
-            bg.fill.solid(); bg.fill.fore_color.rgb = to_rgb("#F3F4F6"); bg.line.fill.background()
+            bg = slide.shapes.add_shape(
+                MSO_SHAPE.RECTANGLE, content_x, yy, content_w, lane_height
+            )
+            bg.fill.solid()
+            bg.fill.fore_color.rgb = to_rgb("#F3F4F6")
+            bg.line.fill.background()
 
-        tb = slide.shapes.add_textbox(x, yy, Inches(gutter) - Inches(0.1), lane_height)
+        # gutter label
+        tb = slide.shapes.add_textbox(
+            x,
+            yy,
+            Inches(gutter) - Inches(0.1),
+            lane_height,
+        )
         tf = tb.text_frame
         tf.text = lanes[i] if i < len(lanes) else f"Lane {i+1}"
         p = tf.paragraphs[0]
-        apply_text_style(p, {"font": {"size": 12, "bold": True}, "align": "right"})
+        apply_text_style(
+            p,
+            {"font": {"size": 12, "bold": True}, "align": "right"},
+        )
 
-    # ----- Time grid + top labels -----
-    grid = element.get("grid", {})
-    quarter_boundaries = grid.get("quarters", [])  # list of ISO dates
-    show_labels = grid.get("showLabels", True)
-    label_offset = float(grid.get("labelOffsetInches", 0.30))  # how far ABOVE the chart area
+    # ----- Time grid + top labels (text-only, no date parsing) -----
+    grid = element.get("grid") or {}
+    quarter_labels = grid.get("quarters") or []    # any text: ["Q1", "Q2"] etc.
+    show_labels = bool(grid.get("showLabels", True))
+    label_offset = float(grid.get("labelOffsetInches", 0.30))  # inches ABOVE chart
     label_font_size = int(grid.get("labelFontSize", 12))
     draw_axis_line = bool(grid.get("topAxisLine", True))
 
-    # vertical guides (inside content area)
-    for d in quarter_boundaries:
-        xx = x_pos(d)
-        line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, xx, y, Inches(0.018), h)
-        line.fill.solid(); line.fill.fore_color.rgb = to_rgb("#E0E0E0"); line.line.fill.background()
+    n_q = len(quarter_labels)
 
-    # top axis line (optional)
-    if draw_axis_line:
-        top_line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, content_x, y - Inches(0.06), content_w, Inches(0.012))
-        top_line.fill.solid(); top_line.fill.fore_color.rgb = to_rgb("#D1D5DB"); top_line.line.fill.background()
+    if n_q >= 2:
+        # vertical guides at evenly spaced boundaries
+        for i in range(n_q):
+            frac = i / (n_q - 1) if n_q > 1 else 0.0   # 0.0 → 1.0
+            xx = content_x + content_w * frac
+            line = slide.shapes.add_shape(
+                MSO_SHAPE.RECTANGLE, xx, y, Inches(0.018), h
+            )
+            line.fill.solid()
+            line.fill.fore_color.rgb = to_rgb("#E0E0E0")
+            line.line.fill.background()
 
-    # quarter labels centered between boundaries (Qn YYYY)
-    if show_labels and len(quarter_boundaries) >= 2:
-        for i in range(len(quarter_boundaries) - 1):
-            d_left = quarter_boundaries[i]
-            d_right = quarter_boundaries[i + 1]
-            xc = (x_pos(d_left) + x_pos(d_right)) / 2.0  # midpoint
-            dt = parse_time(d_left)
-            label = _quarter_label(dt)
+        # top axis line (optional)
+        if draw_axis_line:
+            top_line = slide.shapes.add_shape(
+                MSO_SHAPE.RECTANGLE,
+                content_x,
+                y - Inches(0.06),
+                content_w,
+                Inches(0.012),
+            )
+            top_line.fill.solid()
+            top_line.fill.fore_color.rgb = to_rgb("#D1D5DB")
+            top_line.line.fill.background()
 
-            tb = slide.shapes.add_textbox(xc - Inches(0.5), y - Inches(label_offset), Inches(1.0), Inches(0.28))
-            tf = tb.text_frame; tf.clear()
-            p = tf.paragraphs[0]
-            p.text = label
-            apply_text_style(p, {"font": {"size": label_font_size, "bold": False}, "align": "center"})
+        # labels centered between boundaries, using the provided text as-is
+        if show_labels:
+            for i in range(n_q - 1):
+                frac_mid = (i + 0.5) / (n_q - 1)
+                xc = content_x + content_w * frac_mid
 
+                label_text = str(quarter_labels[i])
+
+                tb = slide.shapes.add_textbox(
+                    xc - Inches(0.5),
+                    y - Inches(label_offset),
+                    Inches(1.0),
+                    Inches(0.28),
+                )
+                tf = tb.text_frame
+                tf.clear()
+                p = tf.paragraphs[0]
+                p.text = label_text
+                apply_text_style(
+                    p,
+                    {
+                        "font": {"size": label_font_size, "bold": False},
+                        "align": "center",
+                    },
+                )
+
+    elif draw_axis_line:
+        # no quarters, but still want a top axis line
+        top_line = slide.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE,
+            content_x,
+            y - Inches(0.06),
+            content_w,
+            Inches(0.012),
+        )
+        top_line.fill.solid()
+        top_line.fill.fore_color.rgb = to_rgb("#D1D5DB")
+        top_line.line.fill.background()
+
+    # ----- Task chevrons -----
     chevron_head = float(element.get("chevronHead", 0.28))
+
     def draw_chevron(left, top, width, height, fill_hex, text, text_color=DEFAULT_TEXT_COLOR):
-        chev = slide.shapes.add_shape(MSO_SHAPE.CHEVRON, left, top, width, height)
-        try: chev.adjustments[0] = chevron_head
-        except Exception: pass
-        chev.fill.solid(); chev.fill.fore_color.rgb = to_rgb(fill_hex); chev.line.fill.background()
-        tf = chev.text_frame; tf.text = text; tf.word_wrap = True
-        p = tf.paragraphs[0]; p.font.name = DEFAULT_FONT_NAME; p.font.size = Pt(11); p.font.bold = True
+        chev = slide.shapes.add_shape(
+            MSO_SHAPE.CHEVRON, left, top, width, height
+        )
+        try:
+            chev.adjustments[0] = chevron_head
+        except Exception:
+            pass
+        chev.fill.solid()
+        chev.fill.fore_color.rgb = to_rgb(fill_hex)
+        chev.line.fill.background()
+
+        tf = chev.text_frame
+        tf.text = text
+        tf.word_wrap = True
+        p = tf.paragraphs[0]
+        p.font.name = DEFAULT_FONT_NAME
+        p.font.size = Pt(11)
+        p.font.bold = True
         p.font.color.rgb = to_rgb(text_color)
-        tf.margin_left = Inches(0.08); tf.margin_top = Inches(0.02)
+        tf.margin_left = Inches(0.08)
+        tf.margin_top = Inches(0.02)
         return chev
 
     # items
     for it in element.get("items", []):
-        left = x_pos(it["start"]["x"])
-        right = x_pos(it["end"]["x"])
-        if right < left: left, right = right, left
+        start_x = it.get("start", {}).get("x")
+        end_x = it.get("end", {}).get("x")
+
+        # if missing start/end, just skip silently (manual input needed)
+        if not start_x or not end_x:
+            continue
+
+        left = x_pos(start_x)
+        right = x_pos(end_x)
+        if right < left:
+            left, right = right, left
         width = right - left
 
-        lane_idx = int(it["start"].get("y", 0))
+        lane_idx = int(it.get("start", {}).get("y", 0))
         height = lane_height * float(it.get("size", {}).get("height", 0.6))
         top = y_pos(lane_idx) + (lane_height - height) / 2.0
 
-        fill = it.get("style", {}).get("fill", "#90CAF9")
-        text_color = it.get("style", {}).get("text", DEFAULT_TEXT_COLOR)
-        label = it.get("label", it.get("id", ""))
+        style = it.get("style", {}) or {}
+        fill = style.get("fill", "#90CAF9")
+        text_color = style.get("text", DEFAULT_TEXT_COLOR)
+        label = it.get("label", it.get("id", "")) or ""
+
         draw_chevron(left, top, width, height, fill, label, text_color)
 
 # =========================
@@ -557,29 +771,40 @@ def group_elements_by_slide_flat(elements):
 def build_ppt_from_spec(spec: dict, output_filename: str = "spec_demo_output.pptx") -> str:
     prs = Presentation()
 
-    # Slide size (global)
+    # -------- Slide size (global) --------
     size = (spec.get("slide") or {}).get("size", "16:9")
     if WIDESCREEN_16x9 or size == "16:9":
+        # 16:9 widescreen
         prs.slide_width = Inches(13.333)
         prs.slide_height = Inches(7.5)
     else:
+        # classic 4:3, if you ever want it
         prs.slide_width = Inches(10.0)
         prs.slide_height = Inches(7.5)
 
-    # Decide slide model
+    # -------- Decide slide model --------
     slides_spec = spec.get("slides")
     if not slides_spec:
+        # Fallback: flat array with element['slide']
         slides_spec = group_elements_by_slide_flat(spec.get("elements", []))
         if slides_spec and (spec.get("metadata") or {}).get("title"):
             slides_spec[0]["title"] = (spec.get("metadata") or {}).get("title")
 
-    # Build slides
+    # -------- Build slides --------
     for s in slides_spec:
         if s.get("layout") == "cover":
             slide = render_cover_slide(prs, s)
         else:
             slide = prs.slides.add_slide(prs.slide_layouts[6])
-            add_title_if_any(slide, s.get("title"))
+
+            # Only add the big title textbox if there is NO heading element.
+            has_heading = any(
+                el.get("type") == "text" and el.get("variant") == "heading"
+                for el in (s.get("elements") or [])
+            )
+            if not has_heading:
+                add_title_if_any(slide, s.get("title"))
+
             for el in s.get("elements", []):
                 render_element(slide, el)
 
@@ -588,6 +813,7 @@ def build_ppt_from_spec(spec: dict, output_filename: str = "spec_demo_output.ppt
     print(f"✅ Saved PowerPoint: {os.path.abspath(out_path)}")
     print(f"   Slides: {len(slides_spec)}")
     return out_path
+
 
 # --- NEW: compute padded frame if legend would crowd the plot ---
 def _padded_chart_frame(position, legend_pos="right", pad_in=0.0):
@@ -627,317 +853,289 @@ def _quarter_label(dt):
     return f"Q{q} {dt.year}"
 
 SAMPLE_TEN_SLIDES = {
-  "version": "1.0",
-  "slides": [
-    # ---------------------- COVER / INTRO ----------------------
-    {
-      "layout": "cover",
-      "accentColor": "#0EA5E9",
-      "elements": [
+      "version": "1.0",
+      "slides": [
         {
-          "type": "text",
-          "variant": "heading",
-          "text": "Consumer & Marketing Solutions — Roadmap 2025–2026",
-          "position": {"x": 1.5, "y": 2.5, "w": 10.0, "h": 1.0},
-          "style": {"font": {"size": 38, "bold": True}}
-        },
-        {
-          "type": "text",
-          "variant": "paragraph",
-          "text": "Connecting consumers and dealers across Autotrader, Kelley Blue Book, and Dealer.com",
-          "position": {"x": 1.5, "y": 3.4, "w": 9.5, "h": 0.6},
-          "style": {"font": {"size": 22}, "align": "left"}
-        },
-        {
-          "type": "text",
-          "variant": "paragraph",
-          "text": "CMS Portfolio — Cox Automotive | November 2025",
-          "position": {"x": 1.5, "y": 6.8, "w": 10.0, "h": 0.4},
-          "style": {"font": {"size": 16}, "align": "right"}
-        }
-      ]
-    },
-
-    # ---------------------- AGENDA ----------------------
-    {
-      "title": "Agenda",
-      "elements": [
-        {
-          "type": "text",
-          "variant": "bullets",
-          "items": [
-            {"text": "Context & goals for 2025–2026", "level": 0},
-            {"text": "Portfolio structure & governance", "level": 0},
-            {"text": "Roadmap overview — H1 & H2", "level": 0},
-            {"text": "KPIs & adoption metrics", "level": 0},
-            {"text": "Channel mix & data trends", "level": 0},
-            {"text": "Risks, dependencies & next steps", "level": 0}
-          ],
-          "position": {"x": 1.0, "y": 1.6, "w": 11.3, "h": 4.6},
-          "style": {"font": {"size": 24}}
-        }
-      ]
-    },
-
-    # ---------------------- CONTEXT ----------------------
-    {
-      "title": "Context & Objectives",
-      "elements": [
-        {
-          "type": "text",
-          "variant": "paragraph",
-          "text": (
-            "CMS portfolio connects millions of car shoppers to trusted pricing and listings while enabling "
-            "dealers and OEMs to run efficient digital campaigns. Our 2025–2026 objectives emphasize speed-to-value, "
-            "shared components, and measurable outcomes."
-          ),
-          "position": {"x": 1.0, "y": 1.0, "w": 11.3, "h": 1.2},
-          "style": {"font": {"size": 18}}
-        },
-        {
-          "type": "text",
-          "variant": "bullets",
-          "items": [
-            {"text": "Unify Autotrader & KBB user journeys with common architecture", "level": 0},
-            {"text": "Modernize dealer marketing tools for automation and insight", "level": 0},
-            {"text": "Launch analytics to improve campaign ROI by 15%", "level": 0}
-          ],
-          "position": {"x": 1.0, "y": 2.6, "w": 11.3, "h": 2.6},
-          "style": {"font": {"size": 18}}
-        }
-      ]
-    },
-
-    # ---------------------- PORTFOLIO STRUCTURE ----------------------
-    {
-      "title": "Portfolio Structure",
-      "elements": [
-        {
-          "type": "table",
-          "headers": ["Layer", "Scope", "Outcome"],
-          "rows": [
-            ["Portfolio", "Autotrader • KBB • Dealer.com", "Shared goals, KPIs, funding"],
-            ["Delivery Stream", "Consumer apps • Dealer marketing", "Coherent delivery plan"],
-            ["Release Train", "Quarterly increments", "Predictable demos & releases"],
-            ["Scrum Team", "PO • Dev • QA • DM", "Shippable increments each sprint"]
-          ],
-          "position": {"x": 1.0, "y": 1.6, "w": 11.3, "h": 2.8}
-        },
-        {
-          "type": "text",
-          "variant": "paragraph",
-          "text": "Governance: monthly steering, quarterly planning, and shared scorecards ensure alignment and transparency.",
-          "position": {"x": 1.0, "y": 4.8, "w": 11.3, "h": 0.8},
-          "style": {"font": {"size": 16}}
-        }
-      ]
-    },
-
-    # ---------------------- GANTT 1 ----------------------
-    {
-      "title": "Roadmap (Gantt) — 1/2",
-      "elements": [
-        {
-          "type": "chart",
-          "subtype": "gantt",
-          "gutterInches": 1.15,
-          "shortenLanes": True,
-          "units": {
-            "xRange": {"t0": "2025-01-01", "t1": "2025-12-31"},
-            "yRange": {
-              "lanes": [
-                "Research",
-                "System Design",
-                "Backend Development",
-                "MVP Build",
-                "UX/UI Refinement"
-              ]
+          "layout": "cover",
+          "title": "BankConnect – Internal Employee Management System",
+          "accentColor": "#007bff",
+          "meta": {
+            "owner": "need manual input",
+            "date": "need manual input"
+          },
+          "elements": [
+            {
+              "type": "text",
+              "variant": "heading",
+              "text": "BankConnect – Internal Employee Management System",
+              "position": { "x": 0.5, "y": 2, "w": 12, "h": 1.5 },
+              "style": {
+                "font": { "name": "Arial", "size": 44, "bold": True },
+                "align": "center",
+                "text": "#007bff"
+              }
+            },
+            {
+              "type": "text",
+              "variant": "paragraph",
+              "text": "A unified platform for employee management, communication, and performance tracking",
+              "position": { "x": 1, "y": 4, "w": 11, "h": 1 },
+              "style": {
+                "font": { "name": "Arial", "size": 24 },
+                "align": "center"
+              }
             }
-          },
-          "items": [
-            {"id": "t1", "label": "Phase 1", "start": {"x": "2025-01-01", "y": 0}, "end": {"x": "2025-03-31"}, "size": {"height": 0.62}, "style": {"fill": "#4FC3F7"}},
-            {"id": "t2", "label": "Phase 2", "start": {"x": "2025-01-01", "y": 1}, "end": {"x": "2025-06-30"}, "size": {"height": 0.62}, "style": {"fill": "#29B6F6"}},
-            {"id": "t3", "label": "Phase 3", "start": {"x": "2025-04-01", "y": 2}, "end": {"x": "2025-06-30"}, "size": {"height": 0.62}, "style": {"fill": "#81C784"}},
-            {"id": "t4", "label": "Phase 4", "start": {"x": "2025-04-01", "y": 3}, "end": {"x": "2025-09-30"}, "size": {"height": 0.62}, "style": {"fill": "#66BB6A"}},
-            {"id": "t5", "label": "Phase 5", "start": {"x": "2025-07-01", "y": 4}, "end": {"x": "2025-09-30"}, "size": {"height": 0.62}, "style": {"fill": "#FFD54F"}}
-          ],
-          "grid": {
-            "quarters": ["2025-01-01", "2025-04-01", "2025-07-01", "2025-10-01", "2026-01-01"],
-            "showLabels": True,
-            "labelOffsetInches": 0.32,
-            "labelFontSize": 12,
-            "topAxisLine": True
-          },
-          "position": {"x": 1.0, "y": 1.4, "w": 11.3, "h": 5.6}
-        }
-      ]
-    },
-
-    # ---------------------- GANTT 2 ----------------------
-    {
-      "title": "Roadmap (Gantt) — 2/2",
-      "elements": [
-        {
-          "type": "chart",
-          "subtype": "gantt",
-          "gutterInches": 1.15,
-          "shortenLanes": True,
-          "units": {
-            "xRange": {"t0": "2026-01-01", "t1": "2026-12-31"},
-            "yRange": {
-              "lanes": [
-                "Integration",
-                "Reporting",
-                "QA",
-                "Launch Prep",
-                "Iteration"
-              ]
-            }
-          },
-          "items": [
-            {"id": "t6", "label": "Phase 6", "start": {"x": "2026-01-01", "y": 0}, "end": {"x": "2026-12-31"}, "size": {"height": 0.62}, "style": {"fill": "#FFB74D"}},
-            {"id": "t7", "label": "Phase 7", "start": {"x": "2026-02-01", "y": 1}, "end": {"x": "2026-06-30"}, "size": {"height": 0.62}, "style": {"fill": "#FF8A65"}},
-            {"id": "t8", "label": "Phase 8", "start": {"x": "2026-07-01", "y": 2}, "end": {"x": "2026-09-30"}, "size": {"height": 0.62}, "style": {"fill": "#BA68C8"}},
-            {"id": "t9", "label": "Phase 9", "start": {"x": "2026-07-01", "y": 3}, "end": {"x": "2026-10-31"}, "size": {"height": 0.62}, "style": {"fill": "#9575CD"}},
-            {"id": "t10", "label": "Phase 10", "start": {"x": "2026-11-01", "y": 4}, "end": {"x": "2026-12-31"}, "size": {"height": 0.62}, "style": {"fill": "#64B5F6"}}
-          ],
-          "grid": {
-            "quarters": ["2026-01-01", "2026-04-01", "2026-07-01", "2026-10-01", "2027-01-01"],
-            "showLabels": True,
-            "labelOffsetInches": 0.32,
-            "labelFontSize": 12,
-            "topAxisLine": True
-          },
-          "position": {"x": 1.0, "y": 1.4, "w": 11.3, "h": 5.6}
-        }
-      ]
-    },
-
-    # ---------------------- KPIs ----------------------
-    {
-      "title": "KPIs & Targets",
-      "elements": [
-        {
-          "type": "table",
-          "headers": ["KPI", "Baseline (Q4’24)", "Target (Q4’26)", "Notes"],
-          "rows": [
-            ["DAU", "7.8 k", "10.0 k", "+28 % via SEO, faster pages, better recs"],
-            ["Conversion", "2.3 %", "2.8 %", "+0.5 pp from UX + A/B tests"],
-            ["Crash rate", "0.6 %", "<0.4 %", "Stability OKRs + canary releases"]
-          ],
-          "position": {"x": 1.0, "y": 1.4, "w": 11.3, "h": 3.0}
-        }
-      ]
-    },
-
-    # ---------------------- BAR CHART ----------------------
-    {
-      "title": "Adoption — Monthly Signups",
-      "elements": [
-        {
-          "type": "chart",
-          "subtype": "bar",
-          "title": "Monthly Signups",
-          "legend": "right",
-          "legendPadInches": 1.0,
-          "x": {"categories": ["Jan", "Feb", "Mar", "Apr", "May"]},
-          "series": [
-            {"name": "iOS", "data": [120, 140, 180, 210, 260], "color": "#64B5F6"},
-            {"name": "Android", "data": [100, 130, 170, 190, 230], "color": "#81C784"}
-          ],
-          "options": {"stacked": False, "orientation": "vertical"},
-          "position": {"x": 1.0, "y": 1.4, "w": 11.3, "h": 4.8}
-        }
-      ]
-    },
-
-    # ---------------------- LINE CHART ----------------------
-    {
-      "title": "Adoption — DAU Trend",
-      "elements": [
-        {
-          "type": "chart",
-          "subtype": "line",
-          "title": "DAU Trend",
-          "legend": "right",
-          "legendPadInches": 1.0,
-          "x": {"categories": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]},
-          "series": [
-            {"name": "DAU", "data": [8200, 8600, 9100, 9800, 10400, 11200], "color": "#29B6F6"}
-          ],
-          "options": {"markers": True, "smooth": False},
-          "position": {"x": 1.0, "y": 1.4, "w": 11.3, "h": 4.8}
-        }
-      ]
-    },
-
-    # ---------------------- PIE CHART ----------------------
-    {
-      "title": "Channel Mix",
-      "elements": [
-        {
-          "type": "chart",
-          "subtype": "pie",
-          "title": "Traffic Sources",
-          "legend": "right",
-          "legendPadInches": 1.0,
-          "showLabels": False,
-          "data": [
-            {"label": "Organic", "value": 45, "color": "#81C784"},
-            {"label": "Paid", "value": 25, "color": "#64B5F6"},
-            {"label": "Direct", "value": 20, "color": "#FFB74D"},
-            {"label": "Referral", "value": 10, "color": "#F06292"}
-          ],
-          "position": {"x": 1.0, "y": 1.6, "w": 11.3, "h": 4.6}
-        }
-      ]
-    },
-
-    # ---------------------- RISKS ----------------------
-    {
-      "title": "Risks, Decisions & Next Steps",
-      "elements": [
-        {
-          "type": "table",
-          "headers": ["Risk / Decision", "Impact", "Mitigation / Ask", "Owner"],
-          "rows": [
-            ["Upstream API readiness", "High", "Mock contracts; align dependency dates", "PO"],
-            ["Data pipeline latency", "Medium", "Batch + stream hybrid; alert SLOs", "Data"],
-            ["Mobile build cadence", "Medium", "Parallelize CI; nightly betas", "Eng"]
-          ],
-          "position": {"x": 1.0, "y": 1.4, "w": 11.3, "h": 2.6}
+          ]
         },
         {
-          "type": "text",
-          "variant": "bullets",
-          "items": [
-            {"text": "Lock MVP scope and Sprint 0 assets", "level": 0},
-            {"text": "Confirm API SLAs with upstream teams", "level": 0},
-            {"text": "Book beta cohort; define experiment backlog", "level": 0}
-          ],
-          "position": {"x": 1.0, "y": 4.2, "w": 11.3, "h": 2.2},
-          "style": {"font": {"size": 18}}
+      
+          "title": "Executive Summary",
+          "elements": [
+            {
+              "type": "text",
+              "variant": "heading",
+              "text": "Executive Summary",
+              "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+              "style": {
+                "font": { "name": "Arial", "size": 36, "bold": True },
+                "align": "left",
+                "text": "#007bff"
+              }
+            },
+            {
+              "type": "text",
+              "variant": "bullets",
+              "items": [
+                { "text": "Objective: Unify employee management across all bank branches", "level": 0 },
+                { "text": "Duration: January 2025 – June 2026", "level": 0 },
+                { "text": "Users: 500+ internal employees nationwide", "level": 0 },
+                { "text": "Target Impact: +30% operational efficiency improvement", "level": 0 }
+              ],
+              "position": { "x": 0.5, "y": 2, "w": 12, "h": 4 },
+              "style": {
+                "font": { "name": "Arial", "size": 24 },
+                "align": "left"
+              }
+            }
+          ]
+        },
+        {
+      
+          "title": "Key Features",
+          "elements": [
+            {
+              "type": "text",
+              "variant": "heading",
+              "text": "Key Features",
+              "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+              "style": {
+                "font": { "name": "Arial", "size": 36, "bold": True },
+                "align": "left",
+                "text": "#007bff"
+              }
+            },
+            {
+              "type": "text",
+              "variant": "bullets",
+              "items": [
+                { "text": "Onboarding: Streamlined onboarding workflow", "level": 0 },
+                { "text": "Attendance: Biometric attendance integration", "level": 0 },
+                { "text": "Evaluation: 360° feedback system", "level": 0 },
+                { "text": "Communication: Secure internal chat and notifications", "level": 0 },
+                { "text": "Compliance: Centralized training and certification", "level": 0 },
+                { "text": "Analytics: Custom KPI dashboards", "level": 0 }
+              ],
+              "position": { "x": 0.5, "y": 2, "w": 12, "h": 5 },
+              "style": {
+                "font": { "name": "Arial", "size": 24 },
+                "align": "left"
+              }
+            }
+          ]
+        },
+        {
+      
+          "title": "Project Overview",
+          "elements": [
+            {
+              "type": "text",
+              "variant": "heading",
+              "text": "Project Overview",
+              "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+              "style": {
+                "font": { "name": "Arial", "size": 36, "bold": True },
+                "align": "left",
+                "text": "#007bff"
+              }
+            },
+            {
+              "type": "chart",
+              "subtype": "bar",
+              "title": "Operational Efficiency Improvement",
+              "legend": "right",
+              "legendPadInches": 1.0,
+              "position": { "x": 0.5, "y": 2, "w": 12, "h": 5 },
+              "x": { "categories": ["Current", "Target"] },
+              "series": [
+                { "name": "Efficiency", "data": [70, 100], "color": "#4CAF50" }
+              ],
+              "options": { "stacked": False, "orientation": "vertical" }
+            }
+          ]
+        },
+        {
+      
+          "title": "Product Roadmap (2025–2026)",
+          "elements": [
+            {
+              "type": "text",
+              "variant": "heading",
+              "text": "Product Roadmap (2025–2026)",
+              "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+              "style": {
+                "font": { "name": "Arial", "size": 36, "bold": True },
+                "align": "left",
+                "text": "#007bff"
+              }
+            },
+            {
+              "type": "chart",
+              "subtype": "gantt",
+              "title": "Project Timeline",
+              "gutterInches": 1.15,
+              "shortenLanes": True,
+              "position": { "x": 0.5, "y": 2, "w": 12, "h": 5 },
+              "units": {
+                "xRange": { "t0": "2025-01-01", "t1": "2026-09-30" },
+                "yRange": {
+                  "lanes": ["Planning", "Design", "Development", "Testing", "Launch"]
+                }
+              },
+              "items": [
+                { "id": "1", "label": "Planning", "start": { "x": "2025-01-01", "y": 0 }, "end": { "x": "2025-03-31" }, "style": { "fill": "#4CAF50" } },
+                { "id": "2", "label": "Design", "start": { "x": "2025-04-01", "y": 1 }, "end": { "x": "2025-06-30" }, "style": { "fill": "#2196F3" } },
+                { "id": "3", "label": "Development", "start": { "x": "2025-07-01", "y": 2 }, "end": { "x": "2026-03-31" }, "style": { "fill": "#FFC107" } },
+                { "id": "4", "label": "Testing", "start": { "x": "2026-04-01", "y": 3 }, "end": { "x": "2026-06-30" }, "style": { "fill": "#9C27B0" } },
+                { "id": "5", "label": "Launch", "start": { "x": "2026-07-01", "y": 4 }, "end": { "x": "2026-09-30" }, "style": { "fill": "#F44336" } }
+              ],
+              "grid": {
+                "quarters": [
+                  "2025 Q1",
+                  "2025 Q2",
+                  "2025 Q3",
+                  "2025 Q4",
+                  "2026 Q1",
+                  "2026 Q2",
+                  "2026 Q3",
+                  "2026 Q4"
+                ],
+                "showLabels": True,
+                "labelOffsetInches": 0.2,
+                "labelFontSize": 10,
+                "topAxisLine": True
+              }
+            }
+          ]
+        },
+        {
+      
+          "title": "Risk Management",
+          "elements": [
+            {
+              "type": "text",
+              "variant": "heading",
+              "text": "Risk Management",
+              "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+              "style": {
+                "font": { "name": "Arial", "size": 36, "bold": True },
+                "align": "left",
+                "text": "#007bff"
+              }
+            },
+            {
+              "type": "table",
+              "headers": ["Risk", "Impact", "Mitigation"],
+              "rows": [
+                ["Data Breach", "High", "End-to-end encryption and RBAC policies"],
+                ["Delay in Rollout", "Medium", "Agile milestones with regular reviews"],
+                ["Adoption Challenges", "Medium", "Training and pilot rollout"],
+                ["Integration Errors", "Low", "Dedicated API sandbox testing"]
+              ],
+              "position": { "x": 0.5, "y": 2, "w": 12, "h": 5 },
+              "style": { "align": "left" }
+            }
+          ]
+        },
+        {
+      
+          "title": "Expected Outcomes",
+          "elements": [
+            {
+              "type": "text",
+              "variant": "heading",
+              "text": "Expected Outcomes",
+              "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+              "style": {
+                "font": { "name": "Arial", "size": 36, "bold": True },
+                "align": "left",
+                "text": "#007bff"
+              }
+            },
+            {
+              "type": "text",
+              "variant": "bullets",
+              "items": [
+                { "text": "70% Faster HR Processes", "level": 0 },
+                { "text": "80% Reduction in Data Errors", "level": 0 },
+                { "text": "20% Increase in Employee Satisfaction", "level": 0 }
+              ],
+              "position": { "x": 0.5, "y": 2, "w": 12, "h": 4 },
+              "style": {
+                "font": { "name": "Arial", "size": 24 },
+                "align": "left"
+              }
+            }
+          ]
+        },
+        {
+      
+          "title": "Closing",
+          "elements": [
+            {
+              "type": "text",
+              "variant": "heading",
+              "text": "Transforming Banking Operations Through Digital Empowerment",
+              "position": { "x": 0.5, "y": 2, "w": 12, "h": 2 },
+              "style": {
+                "font": { "name": "Arial", "size": 36, "bold": True },
+                "align": "center",
+                "text": "#007bff"
+              }
+            },
+            {
+              "type": "text",
+              "variant": "paragraph",
+              "text": "📧 contact@bankconnect.com   🌐 www.bankconnect.io",
+              "position": { "x": 0.5, "y": 5, "w": 12, "h": 1 },
+              "style": {
+                "font": { "name": "Arial", "size": 24 },
+                "align": "center"
+              }
+            }
+          ]
         }
       ]
-    }
-  ]
 }
 
 
-# Fallback example (flat + slide tags)
-SAMPLE_FLAT_WITH_SLIDE_TAGS = {
-    "version": "1.0",
-    "metadata": {"title": "Flat model (slide-tagged)"},
-    "elements": [
-        {"type": "text", "variant": "heading", "text": "Slide 1 title", "position": {"x":1,"y":0.6,"w":10,"h":0.8}, "slide": 1},
-        {"type": "text", "variant": "paragraph", "text": "Hello slide 1", "position": {"x":1,"y":1.4,"w":10,"h":0.6}, "slide": 1},
-        {"type": "text", "variant": "heading", "text": "Slide 2 title", "position": {"x":1,"y":0.6,"w":10,"h":0.8}, "slide": 2},
-        {"type": "text", "variant": "paragraph", "text": "Hello slide 2", "position": {"x":1,"y":1.4,"w":10,"h":0.6}, "slide": 2}
-    ]
-}
+
+
 
 if __name__ == "__main__":
-    # Build the 10-slide deck
-    build_ppt_from_spec(SAMPLE_TEN_SLIDES, output_filename="roadmap_10slides.pptx")
-    # Or try the flat model:
-    # build_ppt_from_spec(SAMPLE_FLAT_WITH_SLIDE_TAGS, output_filename="spec_flat_output.pptx")
+    # In real use, raw_spec_json comes from your API/body["raw_text"]
+    raw_spec_json = json.dumps(SAMPLE_TEN_SLIDES)
+
+    spec = cleaning_JSON(raw_spec_json)
+    build_ppt_from_spec(spec, output_filename="roadmap_10slides.pptx")
+
+
