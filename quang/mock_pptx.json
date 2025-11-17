@@ -1,0 +1,252 @@
+{
+    "version": "1.0",
+    "slides": [
+      {
+        "layout": "cover",
+        "title": "BankConnect – Internal Employee Management System",
+        "accentColor": "#007bff",
+        "meta": {
+          "owner": "need manual input",
+          "date": "need manual input"
+        },
+        "elements": [
+          {
+            "type": "text",
+            "variant": "heading",
+            "text": "BankConnect – Internal Employee Management System",
+            "position": { "x": 0.5, "y": 2, "w": 12, "h": 1.5 },
+            "style": {
+              "font": { "name": "Arial", "size": 44, "bold": true },
+              "align": "center",
+              "color": "#007bff"
+            }
+          },
+          {
+            "type": "text",
+            "variant": "paragraph",
+            "text": "A unified platform for employee management, communication, and performance tracking",
+            "position": { "x": 1, "y": 4, "w": 11, "h": 1 },
+            "style": {
+              "font": { "name": "Arial", "size": 24 },
+              "align": "center"
+            }
+          }
+        ]
+      },
+      {
+    
+        "title": "Objectives",
+        "elements": [
+          {
+            "type": "text",
+            "variant": "heading",
+            "text": "Project Objectives",
+            "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+            "style": {
+              "font": { "name": "Arial", "size": 36, "bold": true },
+              "align": "left",
+              "color": "#007bff"
+            }
+          },
+          {
+            "type": "text",
+            "variant": "bullets",
+            "items": [
+              { "text": "Unify employee management across all bank branches", "level": 0 },
+              { "text": "Implement from January 2025 to June 2026", "level": 0 },
+              { "text": "Serve 500+ internal employees nationwide", "level": 0 },
+              { "text": "Achieve +30% operational efficiency improvement", "level": 0 }
+            ],
+            "position": { "x": 0.5, "y": 2, "w": 12, "h": 4 },
+            "style": { "font": { "name": "Arial", "size": 24 }, "align": "left" }
+          }
+        ]
+      },
+      {
+    
+        "title": "Key Features",
+        "elements": [
+          {
+            "type": "text",
+            "variant": "heading",
+            "text": "Key Features",
+            "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+            "style": {
+              "font": { "name": "Arial", "size": 36, "bold": true },
+              "align": "left",
+              "color": "#007bff"
+            }
+          },
+          {
+            "type": "text",
+            "variant": "bullets",
+            "items": [
+              { "text": "Onboarding: Streamlined workflow", "level": 0 },
+              { "text": "Attendance: Biometric integration", "level": 0 },
+              { "text": "Evaluation: 360° feedback system", "level": 0 },
+              { "text": "Communication: Secure internal chat", "level": 0 },
+              { "text": "Compliance: Centralized training", "level": 0 },
+              { "text": "Analytics: Custom KPI dashboards", "level": 0 }
+            ],
+            "position": { "x": 0.5, "y": 2, "w": 12, "h": 4 },
+            "style": { "font": { "name": "Arial", "size": 24 }, "align": "left" }
+          }
+        ]
+      },
+      {
+    
+        "title": "Product Roadmap",
+        "elements": [
+          {
+            "type": "text",
+            "variant": "heading",
+            "text": "Product Roadmap (2025–2026)",
+            "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+            "style": {
+              "font": { "name": "Arial", "size": 36, "bold": true },
+              "align": "left",
+              "color": "#007bff"
+            }
+          },
+          {
+            "type": "chart",
+            "subtype": "gantt",
+            "title": "Project Timeline",
+            "position": { "x": 0.5, "y": 1.5, "w": 12, "h": 5 },
+            "gutterInches": 1.15,
+            "shortenLanes": true,
+            "units": {
+              "xRange": { "t0": "2025-01-01", "t1": "2026-09-30" },
+              "yRange": {
+                "lanes": [
+                  "Planning",
+                  "Architecture",
+                  "Core HR Dev",
+                  "Performance",
+                  "Communication",
+                  "UAT",
+                  "Launch"
+                ]
+              }
+            },
+            "items": [
+              { "id": "1", "label": "Planning", "start": { "x": "2025-01-01", "y": 0 }, "end": { "x": "2025-03-31" }, "style": { "fill": "#4285f4" } },
+              { "id": "2", "label": "Architecture", "start": { "x": "2025-04-01", "y": 1 }, "end": { "x": "2025-06-30" }, "style": { "fill": "#34a853" } },
+              { "id": "3", "label": "Core HR Dev", "start": { "x": "2025-07-01", "y": 2 }, "end": { "x": "2025-09-30" }, "style": { "fill": "#fbbc05" } },
+              { "id": "4", "label": "Performance", "start": { "x": "2025-10-01", "y": 3 }, "end": { "x": "2025-12-31" }, "style": { "fill": "#ea4335" } },
+              { "id": "5", "label": "Communication", "start": { "x": "2026-01-01", "y": 4 }, "end": { "x": "2026-03-31" }, "style": { "fill": "#4285f4" } },
+              { "id": "6", "label": "UAT", "start": { "x": "2026-04-01", "y": 5 }, "end": { "x": "2026-06-30" }, "style": { "fill": "#34a853" } },
+              { "id": "7", "label": "Launch", "start": { "x": "2026-07-01", "y": 6 }, "end": { "x": "2026-09-30" }, "style": { "fill": "#fbbc05" } }
+            ],
+            "grid": {
+              "quarters": [
+                "2025 Q1",
+                "2025 Q2",
+                "2025 Q3",
+                "2025 Q4",
+                "2026 Q1",
+                "2026 Q2",
+                "2026 Q3"
+              ],
+              "showLabels": true,
+              "labelOffsetInches": 0.2,
+              "labelFontSize": 10,
+              "topAxisLine": true
+            }
+          }
+        ]
+      },
+      {
+    
+        "title": "Risk Management",
+        "elements": [
+          {
+            "type": "text",
+            "variant": "heading",
+            "text": "Risk Management",
+            "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+            "style": {
+              "font": { "name": "Arial", "size": 36, "bold": true },
+              "align": "left",
+              "color": "#007bff"
+            }
+          },
+          {
+            "type": "table",
+            "headers": ["Risk", "Impact", "Mitigation"],
+            "rows": [
+              ["Data Breach", "High", "End-to-end encryption and RBAC policies"],
+              ["Delay in Rollout", "Medium", "Agile milestones with regular reviews"],
+              ["Adoption Challenges", "Medium", "Training and pilot rollout"],
+              ["Integration Errors", "Low", "Dedicated API sandbox testing"]
+            ],
+            "position": { "x": 0.5, "y": 2, "w": 12, "h": 4 },
+            "style": { "align": "left" }
+          }
+        ]
+      },
+      {
+    
+        "title": "Expected Outcomes",
+        "elements": [
+          {
+            "type": "text",
+            "variant": "heading",
+            "text": "Expected Outcomes",
+            "position": { "x": 0.5, "y": 0.5, "w": 12, "h": 1 },
+            "style": {
+              "font": { "name": "Arial", "size": 36, "bold": true },
+              "align": "left",
+              "color": "#007bff"
+            }
+          },
+          {
+            "type": "chart",
+            "subtype": "bar",
+            "title": "Improvement Metrics",
+            "legend": "right",
+            "legendPadInches": 1.0,
+            "position": { "x": 0.5, "y": 2, "w": 12, "h": 4 },
+            "x": {
+              "categories": [
+                "HR Process Speed",
+                "Data Accuracy",
+                "Employee Satisfaction"
+              ]
+            },
+            "series": [
+              {
+                "name": "Improvement",
+                "data": [70, 80, 20],
+                "color": "#34a853"
+              }
+            ],
+            "options": { "orientation": "horizontal" }
+          }
+        ]
+      },
+      {
+    
+        "title": "Closing",
+        "elements": [
+          {
+            "type": "text",
+            "variant": "heading",
+            "text": "Transforming Banking Operations Through Digital Empowerment",
+            "position": { "x": 0.5, "y": 2, "w": 12, "h": 2 },
+            "style": {
+              "font": { "name": "Arial", "size": 36, "bold": true },
+              "align": "center",
+              "color": "#007bff"
+            }
+          },
+          {
+            "type": "text",
+            "variant": "paragraph",
+            "text": "📧 contact@bankconnect.com   🌐 www.bankconnect.io",
+            "position": { "x": 0.5, "y": 4, "w": 12, "h": 1 },
+            "style": { "font": { "name": "Arial", "size": 24 }, "align": "center" }
+          }
+        ]
+      }
+    ]}
