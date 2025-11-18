@@ -960,6 +960,213 @@ SAMPLE_FLAT_WITH_SLIDE_TAGS = {
     ]
 }
 
+LAMBDA_OUTPUT = {
+  "risks_and_issues": [
+      {
+        "description": "Scope creep risk due to agile methodology and evolving product backlog",
+        "type": "Risk",
+        "action": "Implement strict change control process and regular backlog refinement sessions",
+        "pic": "Slalom Delivery Lead",
+        "plan_end_date": None
+      },
+      {
+        "description": "Integration risk with multiple systems (Hubspot, Chargebee, etc.)",
+        "type": "Risk",
+        "action": "Conduct thorough integration testing and establish clear API contracts",
+        "pic": "Solution Architect",
+        "plan_end_date": None
+      },
+      {
+        "description": "Resource availability risk due to remote work and time zone differences",
+        "type": "Risk",
+        "action": "Establish clear communication protocols and ensure minimum 5-hour overlap",
+        "pic": "Subcontractor",
+        "plan_end_date": None
+      },
+      {
+        "description": "Quality assurance risk due to complex feature set and multiple releases",
+        "type": "Risk",
+        "action": "Implement comprehensive testing strategy including automated and manual tests",
+        "pic": "Quality Engineer",
+        "plan_end_date": None
+      },
+      {
+        "description": "Schedule risk due to fixed release plans (Beta Pro, MVP Lite, MVP Pro)",
+        "type": "Risk",
+        "action": "Regularly review and prioritize backlog, consider feature toggles for flexible releases",
+        "pic": "Slalom Delivery Lead",
+        "plan_end_date": None
+      },
+      {
+        "description": "Performance risk for offline functionality and data synchronization",
+        "type": "Risk",
+        "action": "Conduct thorough performance testing and optimize data sync algorithms",
+        "pic": "Software Engineer",
+        "plan_end_date": None
+      },
+      {
+        "description": "Risk of intellectual property disputes due to subcontractor involvement",
+        "type": "Risk",
+        "action": "Ensure clear IP ownership terms in subcontractor agreements",
+        "pic": "Legal Counsel",
+        "plan_end_date": None
+      }
+  ],
+  "contract_checklist": [
+      {
+        "description": "SOW (Statement of Work)",
+        "checklist": "Yes",
+        "remark": "SOW is present and detailed in the document"
+      },
+      {
+        "description": "Milestones/Deliverables",
+        "checklist": "Yes",
+        "remark": "Deliverables are defined for each sprint and release"
+      },
+      {
+        "description": "Milestone billable payment",
+        "checklist": "No",
+        "remark": None
+      },
+      {
+        "description": "Acceptance criteria",
+        "checklist": "Yes",
+        "remark": "Mentioned in Quality Assurance section, but specific criteria not provided"
+      },
+      {
+        "description": "Penalty terms",
+        "checklist": "No",
+        "remark": None
+      },
+      {
+        "description": "Warranty",
+        "checklist": "No",
+        "remark": None
+      },
+      {
+        "description": "Confidentiality",
+        "checklist": "Yes",
+        "remark": "Mentioned in Flow-Down Terms section"
+      },
+      {
+        "description": "Contract change conditions",
+        "checklist": "Yes",
+        "remark": "Mentioned in Governance section for scope changes"
+      },
+      {
+        "description": "Protection terms",
+        "checklist": "Yes",
+        "remark": "Mentioned in Flow-Down Terms regarding insurance coverage and waiver of claims"
+      }
+  ]
+}
+
+# 2. Template Config (Cấu hình hiển thị 2 Slide)
+TEMPLATE_CONFIG = [
+  # Slide 1: Risk Management
+  {
+    "type": "risk_slide",
+    "desc": "Risk Management",
+    "elements": [
+      {
+        "kind": "text_box", "role": "title", "content": "Risk & Issue Management",
+        "position": { "x": 0.5, "y": 0.4, "w": 12, "h": 0.8 },
+        "style": { "font": {"size": 32, "bold": True}, "color": "#000000" } 
+      },
+      {
+        "kind": "table",
+        "source": "risks_and_issues",
+        "required": True,
+        "position": { "x": 0.5, "y": 1.3, "w": 12.33, "h": 5 },
+        "tableSpec": {
+          "headers": ["Description", "Type", "Action/Prevention Action", "PIC", "Plan End Date"],
+          "col_mapping": ["description", "type", "action", "pic", "plan_end_date"],
+          # Cột Action rộng nhất để chứa text dài
+          "col_widths": [4.0, 0.8, 4.5, 1.5, 1.5],
+          "style": "Medium Style 2 - Accent 1" 
+        }
+      }
+    ]
+  },
+  # Slide 2: Contract Checklist
+  {
+    "type": "checklist_slide",
+    "desc": "Contract Checklist",
+    "elements": [
+      {
+        "kind": "text_box", "role": "title", "content": "Contract Compliance Checklist",
+        "position": { "x": 0.5, "y": 0.4, "w": 12, "h": 0.8 },
+        "style": { "font": {"size": 32, "bold": True}, "color": "#000000" }
+      },
+      {
+        "kind": "table",
+        "source": "contract_checklist",
+        "required": True,
+        "position": { "x": 0.5, "y": 1.3, "w": 12.33, "h": 5 },
+        "tableSpec": {
+          "headers": ["Description", "Checklist", "Remark"],
+          "col_mapping": ["description", "checklist", "remark"],
+          # Cột Description rộng nhất
+          "col_widths": [7.5, 1.0, 3.83],
+          "style": "Medium Style 2 - Accent 1"
+        }
+      }
+    ]
+  }
+]
+
+# 3. Hàm Mapping (Convert Template + Data -> Renderable Spec)
+def generate_spec_from_data(template, data):
+    final_slides = []
+    for t_slide in template:
+        elements = []
+        for t_el in t_slide.get("elements", []):
+            new_el = t_el.copy()
+            kind = t_el.get("kind")
+
+            # Xử lý tiêu đề
+            if kind == "text_box":
+                new_el["type"] = "text"
+                new_el["text"] = t_el.get("content", "")
+                if t_el.get("role") == "title":
+                    new_el["variant"] = "heading"
+                else:
+                    new_el["variant"] = "paragraph"
+
+            # Xử lý bảng (Map Data trực tiếp)
+            elif kind == "table":
+                new_el["type"] = "table"
+                if "source" in t_el:
+                    source_key = t_el["source"]
+                    # Lấy data trực tiếp từ key (vì không còn wrapper body)
+                    items = data.get(source_key, [])
+                    
+                    spec = t_el.get("tableSpec", {})
+                    col_mapping = spec.get("col_mapping", [])
+                    
+                    new_el["headers"] = spec.get("headers", [])
+                    
+                    rows = []
+                    for item in items:
+                        row_data = []
+                        for key in col_mapping:
+                            val = item.get(key)
+                            # Chuyển None thành chuỗi rỗng
+                            row_data.append(val if val is not None else "")
+                        rows.append(row_data)
+                    new_el["rows"] = rows
+                    
+                    if "col_widths" in spec:
+                        new_el["column_widths"] = spec["col_widths"]
+
+            elements.append(new_el)
+        
+        final_slides.append({
+            "layout": "blank",
+            "elements": elements
+        })
+    return {"version": "1.0", "slides": final_slides}
+
 if __name__ == "__main__":
     import argparse, json, os
     parser = argparse.ArgumentParser(description="Render PPTX from JSON spec or built-in samples")
@@ -978,6 +1185,9 @@ if __name__ == "__main__":
     if in_path:
         with open(in_path, "r", encoding="utf-8") as f:
             spec = json.load(f)
+        # my_spec = generate_spec_from_data(TEMPLATE_CONFIG, LAMBDA_OUTPUT)
+        # print("\n--- DEBUG: GENERATED SPEC DATA ---")
+        # print(json.dumps(my_spec, indent=2, ensure_ascii=False))
         build_ppt_from_spec(spec, output_filename=args.out_path)
     else:
         # Fallback to samples only when JSON not found
